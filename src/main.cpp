@@ -131,8 +131,14 @@ void getTriangleScreen(array<Vec2, 3>& triScreen, array<Vec3, 3>& triWorld, Vec2
 {
 	for (int i = 0; i < 3; i++)
 	{
-		triScreen[0] = scale * static_cast<Vec2>(triWorld[0]) + shift;
+		triScreen[i] = scale * (Vec2)triWorld[i] + shift;
 	}
+}
+
+float getTriangleArea(Vec2 a, Vec2 b)
+{
+	// Compute the area of the triangle using the cross product
+	return 0.5f * (a.x * b.y - b.x * a.y);
 }
 
 int main(int argc, char **argv)
@@ -184,40 +190,20 @@ int main(int argc, char **argv)
 	cout << "Number of vertices: " << vertBuf.size() / 3 << endl;
 	cout << "Number of triangles: " << indBuf.size() / 3 << endl;
 
-	// for debugging purposes
-	bool printVBuf = false;
-	if (printVBuf)
-	{
-		for (float p : vertBuf)
-		{
-			cout << p << " ";
-		}
-		cout << endl;
-	}
-	bool printIBuf = false;
-	if (printIBuf)
-	{
-		for (unsigned int t : indBuf)
-		{
-			cout << t << " ";
-		}
-		cout << endl;
-	}
-
 	// Determine orientation of the window and define the view frustrum
 	float left, right, bottom, top;
 	if (g_width > g_height)
 	{
 		left = -g_width / g_height;
 		right = g_width / g_height;
-		bottom = -1.0;
-		top = 1.0;
+		bottom = -1.0f;
+		top = 1.0f;
 		
 	}
 	else
 	{
-		left = -1.0;
-		right = 1.0;
+		left = -1.0f;
+		right = 1.0f;
 		bottom = -g_height / g_width;
 		top = g_height / g_width;
 	}
@@ -225,25 +211,65 @@ int main(int argc, char **argv)
 	// Create the mapping from world space to screen space
 	float scaleX = (g_width - 1) / (right - left);
 	float scaleY = (g_height - 1) / (top - bottom);
-	Vec2 scale = { scaleX, scaleY };
+	Vec2 scale(scaleX, scaleY);
 
 	float shiftX = -scaleX * left;
 	float shiftY = -scaleY * bottom;
-	Vec2 shift = { shiftX, shiftY };
+	Vec2 shift(shiftX, shiftY);
+
+	float epsilon = 0.001f;
 
 	// Loop through and rasterize all the triangles
 	for (int n = 0; n < indBuf.size() / 3; n++)
 	{
 		// Get data from buffers to assemble triangles
-		array<Vec3, 3> triWorld;
-		getTriangleWorld(triWorld, vertBuf, indBuf, size, offset, n);
+		array<Vec3, 3> t_w;
+		getTriangleWorld(t_w, vertBuf, indBuf, size, offset, n);
 
 		// Convert vertices from world space to screen space
-		array<Vec2, 3> triScreen;
-		getTriangleScreen(triScreen, triWorld, scale, shift);
+		array<Vec2, 3> t_s;
+		getTriangleScreen(t_s, t_w, scale, shift);
+
+		// Get the bounding box of the triangle with screen coordinates
+		BBox bbox;
+		bbox.xMin = min(t_s[0].x, min(t_s[1].x, t_s[2].x));
+		bbox.xMax = max(t_s[0].x, max(t_s[1].x, t_s[2].x));
+		bbox.yMin = min(t_s[0].y, min(t_s[1].y, t_s[2].y));
+		bbox.yMax = max(t_s[0].y, max(t_s[1].y, t_s[2].y));
+
+		// Compute the area of the overall triangle
+		Vec2 v01 = t_s[0] - t_s[1];
+		Vec2 v02 = t_s[0] - t_s[2];
+		float triArea = getTriangleArea(v01, v02);
+
+		// Loop through all pixels within the bounding box
+		for (int y = bbox.yMin; y <= bbox.yMax; y++)
+		{
+			for (int x = bbox.xMin; x <= bbox.xMax; x++)
+			{
+				// Define the vectors for each subtriangle
+				Vec2 v(static_cast<float>(x), static_cast<float>(y));
+				Vec2 v0 = t_s[0] - v;
+				Vec2 v1 = t_s[1] - v;
+				Vec2 v2 = t_s[2] - v;
+
+				// Compute the barycentric coordinates
+				float alpha = getTriangleArea(v1, v2) / triArea;
+				float beta = getTriangleArea(v2, v0) / triArea;
+				float gamma = getTriangleArea(v0, v1) / triArea;
+
+				// Check if alpha, beta, and gamma are inside traingles
+				if (-epsilon <= alpha && alpha <= 1 + epsilon &&
+					-epsilon <= beta && beta <= 1 + epsilon &&
+					-epsilon <= gamma && gamma <= 1 + epsilon)
+				{
+					image->setPixel(x, y, 255, 0, 0);
+				}
+			}
+		}
 	}
 	
-	// write out the image
+	// Write out the image
 	image->writeToFile(imgName);
 
 	return 0;
