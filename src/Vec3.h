@@ -9,7 +9,7 @@ struct Vec3
 	Vec3();
 	Vec3(float x, float y, float z);
 
-	inline operator Vec2() const;
+	operator Vec2() const;
 };
 
 inline Vec3 operator+(const Vec3& a, const Vec3& b)

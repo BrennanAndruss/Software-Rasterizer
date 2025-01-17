@@ -9,7 +9,7 @@ struct Vec2
 	Vec2();
 	Vec2(float x, float y);
 
-	inline operator Vec3() const;
+	operator Vec3() const;
 };
 
 inline Vec2 operator+(const Vec2& a, const Vec2& b)
