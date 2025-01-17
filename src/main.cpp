@@ -3,11 +3,14 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <array>
 #include <memory>
 #include <assert.h>
 
 #include "tiny_obj_loader.h"
 #include "Image.h"
+#include "Vec2.h"
+#include "Vec3.h"
 
 // This allows you to skip the `std::` in front of C++ standard library
 // functions. You can also say `using std::cout` to be more selective.
@@ -15,6 +18,14 @@
 using namespace std;
 
 int g_width, g_height;
+
+struct BBox
+{
+	int xMin;
+	int xMax;
+	int yMin;
+	int yMax;
+};
 
 /*
    Helper function you will want all quarter
@@ -90,49 +101,38 @@ void resize_obj(std::vector<tinyobj::shape_t> &shapes)
 	}
 }
 
-struct Vec3
+void getTriangleWorld(array<Vec3, 3>& tri, vector<float>& vertBuf, 
+	vector<unsigned int>& indBuf, int size, int offset, int n)
 {
-	float x;
-	float y;
-	float z;
-};
-
-struct Triangle
-{
-	Vec3 v0;
-	Vec3 v1;
-	Vec3 v2;
-};
-
-Triangle getTriangle(vector<float>& vertBuf, vector<unsigned int>& indBuf, int n)
-{
-	int size = 3; // Each vertex has 3 components
-	int offset = 3; // A new triangle starts every 3 indices
-
 	// Get triangle indices from the index buffer
 	int i0 = indBuf[n * offset];
 	int i1 = indBuf[n * offset + 1];
 	int i2 = indBuf[n * offset + 2];
 
 	// Get the specified vertices from the vertex buffer
-	Vec3 v0 = {
+	tri[0] = Vec3{
 		vertBuf[i0 * size],
 		vertBuf[i0 * size + 1],
 		vertBuf[i0 * size + 2]
 	};
-	Vec3 v1 = {
+	tri[1] = Vec3{
 		vertBuf[i1 * size],
 		vertBuf[i1 * size + 1],
 		vertBuf[i1 * size + 2]
 	};
-	Vec3 v2 = {
+	tri[2] = Vec3{
 		vertBuf[i2 * size],
 		vertBuf[i2 * size + 1],
 		vertBuf[i2 * size + 2]
 	};
+}
 
-	// Return the triangle containing the three vertices
-	return Triangle{ v0, v1, v2 };
+void getTriangleScreen(array<Vec2, 3>& triScreen, array<Vec3, 3>& triWorld, Vec2 scale, Vec2 shift)
+{
+	for (int i = 0; i < 3; i++)
+	{
+		triScreen[0] = scale * static_cast<Vec2>(triWorld[0]) + shift;
+	}
 }
 
 int main(int argc, char **argv)
@@ -157,7 +157,10 @@ int main(int argc, char **argv)
 
 	// Define vertex and index buffers
 	vector<float> vertBuf;
+	int size = 3; // Each vertex has 3 components
+
 	vector<unsigned int> indBuf;
+	int offset = 3; // A new triangle starts every 3 indices
 
 	// Some obj files contain material information.
 	// We'll ignore them for this assignment.
@@ -201,10 +204,43 @@ int main(int argc, char **argv)
 		cout << endl;
 	}
 
+	// Determine orientation of the window and define the view frustrum
+	float left, right, bottom, top;
+	if (g_width > g_height)
+	{
+		left = -g_width / g_height;
+		right = g_width / g_height;
+		bottom = -1.0;
+		top = 1.0;
+		
+	}
+	else
+	{
+		left = -1.0;
+		right = 1.0;
+		bottom = -g_height / g_width;
+		top = g_height / g_width;
+	}
+
+	// Create the mapping from world space to screen space
+	float scaleX = (g_width - 1) / (right - left);
+	float scaleY = (g_height - 1) / (top - bottom);
+	Vec2 scale = { scaleX, scaleY };
+
+	float shiftX = -scaleX * left;
+	float shiftY = -scaleY * bottom;
+	Vec2 shift = { shiftX, shiftY };
+
 	// Loop through and rasterize all the triangles
 	for (int n = 0; n < indBuf.size() / 3; n++)
 	{
-		Triangle tri = getTriangle(vertBuf, indBuf, n);
+		// Get data from buffers to assemble triangles
+		array<Vec3, 3> triWorld;
+		getTriangleWorld(triWorld, vertBuf, indBuf, size, offset, n);
+
+		// Convert vertices from world space to screen space
+		array<Vec2, 3> triScreen;
+		getTriangleScreen(triScreen, triWorld, scale, shift);
 	}
 	
 	// write out the image
