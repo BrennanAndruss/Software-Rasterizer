@@ -90,6 +90,50 @@ void resize_obj(std::vector<tinyobj::shape_t> &shapes)
 	}
 }
 
+struct Vec3
+{
+	float x;
+	float y;
+	float z;
+};
+
+struct Triangle
+{
+	Vec3 v0;
+	Vec3 v1;
+	Vec3 v2;
+};
+
+Triangle getTriangle(vector<float>& vertBuf, vector<unsigned int>& indBuf, int n)
+{
+	int size = 3; // Each vertex has 3 components
+	int offset = 3; // A new triangle starts every 3 indices
+
+	// Get triangle indices from the index buffer
+	int i0 = indBuf[n * offset];
+	int i1 = indBuf[n * offset + 1];
+	int i2 = indBuf[n * offset + 2];
+
+	// Get the specified vertices from the vertex buffer
+	Vec3 v0 = {
+		vertBuf[i0 * size],
+		vertBuf[i0 * size + 1],
+		vertBuf[i0 * size + 2]
+	};
+	Vec3 v1 = {
+		vertBuf[i1 * size],
+		vertBuf[i1 * size + 1],
+		vertBuf[i1 * size + 2]
+	};
+	Vec3 v2 = {
+		vertBuf[i2 * size],
+		vertBuf[i2 * size + 1],
+		vertBuf[i2 * size + 2]
+	};
+
+	// Return the triangle containing the three vertices
+	return Triangle{ v0, v1, v2 };
+}
 
 int main(int argc, char **argv)
 {
@@ -111,10 +155,10 @@ int main(int argc, char **argv)
 	// create an image
 	auto image = make_shared<Image>(g_width, g_height);
 
-	// triangle buffer
-	vector<unsigned int> triBuf;
-	// position buffer
-	vector<float> posBuf;
+	// Define vertex and index buffers
+	vector<float> vertBuf;
+	vector<unsigned int> indBuf;
+
 	// Some obj files contain material information.
 	// We'll ignore them for this assignment.
 	vector<tinyobj::shape_t> shapes; // geometry
@@ -131,12 +175,37 @@ int main(int argc, char **argv)
 	{
  		// keep this code to resize your object to be within -1 -> 1
 		resize_obj(shapes); 
-		posBuf = shapes[0].mesh.positions;
-		triBuf = shapes[0].mesh.indices;
+		vertBuf = shapes[0].mesh.positions;
+		indBuf = shapes[0].mesh.indices;
 	}
-	cout << "Number of vertices: " << posBuf.size()/3 << endl;
-	cout << "Number of triangles: " << triBuf.size()/3 << endl;
+	cout << "Number of vertices: " << vertBuf.size() / 3 << endl;
+	cout << "Number of triangles: " << indBuf.size() / 3 << endl;
 
+	// for debugging purposes
+	bool printVBuf = false;
+	if (printVBuf)
+	{
+		for (float p : vertBuf)
+		{
+			cout << p << " ";
+		}
+		cout << endl;
+	}
+	bool printIBuf = false;
+	if (printIBuf)
+	{
+		for (unsigned int t : indBuf)
+		{
+			cout << t << " ";
+		}
+		cout << endl;
+	}
+
+	// Loop through and rasterize all the triangles
+	for (int n = 0; n < indBuf.size() / 3; n++)
+	{
+		Triangle tri = getTriangle(vertBuf, indBuf, n);
+	}
 	
 	// write out the image
 	image->writeToFile(imgName);
