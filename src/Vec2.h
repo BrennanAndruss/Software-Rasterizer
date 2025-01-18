@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 struct Vec3;
 
 struct Vec2
@@ -37,3 +38,12 @@ inline Vec2 operator*(float d, const Vec2& a)
 	return Vec2(d * a.x, d * a.y);
 }
 
+inline float dot(const Vec2& a, const Vec2& b)
+{
+	return a.x * b.x + a.y * b.y;
+}
+
+inline float mag(const Vec2& a)
+{
+	return sqrt(dot(a, a));
+}

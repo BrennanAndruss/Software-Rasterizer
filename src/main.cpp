@@ -135,7 +135,7 @@ void getTriangleScreen(array<Vec2, 3>& triScreen, array<Vec3, 3>& triWorld, Vec2
 	}
 }
 
-float getTriangleArea(Vec2 a, Vec2 b)
+float triangleArea(Vec2 a, Vec2 b)
 {
 	// Compute the area of the triangle using the cross product
 	return 0.5f * (a.x * b.y - b.x * a.y);
@@ -245,32 +245,41 @@ int main(int argc, char **argv)
 		getTriangleScreen(triScreen, triWorld, scale, shift);
 
 		// Get the bounding box of the triangle with screen coordinates
-		BBox bbox;
-		bbox.xMin = min(triScreen[0].x, min(triScreen[1].x, triScreen[2].x));
-		bbox.xMax = max(triScreen[0].x, max(triScreen[1].x, triScreen[2].x));
-		bbox.yMin = min(triScreen[0].y, min(triScreen[1].y, triScreen[2].y));
-		bbox.yMax = max(triScreen[0].y, max(triScreen[1].y, triScreen[2].y));
+		BBox bbox = {
+			min(triScreen[0].x, min(triScreen[1].x, triScreen[2].x)),	// xMin
+			max(triScreen[0].x, max(triScreen[1].x, triScreen[2].x)),	// xMax
+			min(triScreen[0].y, min(triScreen[1].y, triScreen[2].y)),	// yMin
+			max(triScreen[0].y, max(triScreen[1].y, triScreen[2].y))	// yMax
+		};
 
 		// Compute the area of the overall triangle
 		Vec2 v01 = triScreen[0] - triScreen[1];
 		Vec2 v02 = triScreen[0] - triScreen[2];
-		float triArea = getTriangleArea(v01, v02);
+		float triArea = triangleArea(v01, v02);
 
+		// Color mode 2: Compute the center of the triangle
+		Vec2 center;
+		if (colorMode == 2)
+		{
+			center = triScreen[0] * (1.0f / 3.0f) + triScreen[1] * (1.0f / 3.0f) + triScreen[2] * (1.0f / 3.0f);
+		}
+		
 		// Loop through all pixels within the bounding box
 		for (int y = bbox.yMin; y <= bbox.yMax; y++)
 		{
 			for (int x = bbox.xMin; x <= bbox.xMax; x++)
 			{
-				// Define the vectors for each subtriangle
-				Vec2 v(static_cast<float>(x), static_cast<float>(y));
-				Vec2 v0 = triScreen[0] - v;
-				Vec2 v1 = triScreen[1] - v;
-				Vec2 v2 = triScreen[2] - v;
+				// Define the point in screen space
+				Vec2 p(static_cast<float>(x), static_cast<float>(y));
+				// Define vectors for each subtriangle
+				Vec2 v0 = triScreen[0] - p;
+				Vec2 v1 = triScreen[1] - p;
+				Vec2 v2 = triScreen[2] - p;
 
 				// Compute the barycentric coordinates
-				float alpha = getTriangleArea(v1, v2) / triArea;
-				float beta = getTriangleArea(v2, v0) / triArea;
-				float gamma = getTriangleArea(v0, v1) / triArea;
+				float alpha = triangleArea(v1, v2) / triArea;
+				float beta = triangleArea(v2, v0) / triArea;
+				float gamma = triangleArea(v0, v1) / triArea;
 
 				// Check if alpha, beta, and gamma are inside traingles
 				if (-epsilon <= alpha && alpha <= 1 + epsilon &&
@@ -281,13 +290,22 @@ int main(int argc, char **argv)
 					float z = alpha * triWorld[0].z + beta * triWorld[1].z + gamma * triWorld[2].z;
 					if (z > zBuffer[y * g_width + x])
 					{
-						// Adjust the base color based on depth and color the pixel
-						Vec3 depthColor = baseColor * ((1.0f + z) / 2.0f);
-						Vec3 pixelColor = alpha * depthColor + beta * depthColor + gamma * depthColor;
-						image->setPixel(x, y, pixelColor.x, pixelColor.y, pixelColor.z);
-
 						// Update the depth buffer
 						zBuffer[y * g_width + x] = z;
+
+						// Color mode 2: Check if the pixel is within 4 pixels of the center
+						if (colorMode == 2 && mag(p - center) > 4.0f)
+						{
+							// Color pixels outside the circle white
+							image->setPixel(x, y, 255.0f, 255.0f, 255.0f);
+						}
+						else
+						{
+							// Adjust the base color based on depth and color the pixel
+							Vec3 depthColor = baseColor * ((1.0f + z) / 2.0f);
+							Vec3 pixelColor = alpha * depthColor + beta * depthColor + gamma * depthColor;
+							image->setPixel(x, y, pixelColor.x, pixelColor.y, pixelColor.z);
+						}
 					}
 				}
 			}

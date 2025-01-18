@@ -37,3 +37,12 @@ inline Vec3 operator*(float d, const Vec3& a)
 	return Vec3(d * a.x, d * a.y, d * a.z);
 }
 
+inline float dot(const Vec3& a, const Vec3& b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+inline float mag(const Vec3& a)
+{
+	return sqrt(dot(a, a));
+}
