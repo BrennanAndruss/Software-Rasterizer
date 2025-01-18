@@ -28,9 +28,9 @@ struct BBox
 };
 
 /*
-   Helper function you will want all quarter
-   Given a vector of shapes which has already been read from an obj file
-   resize all vertices to the range [-1, 1]
+	Helper function you will want all quarter
+	Given a vector of shapes which has already been read from an obj file
+	resize all vertices to the range [-1, 1]
 */
 void resize_obj(std::vector<tinyobj::shape_t> &shapes)
 {
@@ -101,6 +101,10 @@ void resize_obj(std::vector<tinyobj::shape_t> &shapes)
 	}
 }
 
+/*
+	Helper function to obtain triangle vertices using the vertex and index buffers
+	Pass in an Vec3 array representing a triangle that will have its vertices set
+*/
 void getTriangleWorld(array<Vec3, 3>& tri, vector<float>& vertBuf, 
 	vector<unsigned int>& indBuf, int size, int offset, int n)
 {
@@ -127,6 +131,11 @@ void getTriangleWorld(array<Vec3, 3>& tri, vector<float>& vertBuf,
 	};
 }
 
+/*
+	Helper function to convert triangle vertices from world space to screen space
+	Pass in Vec2 and Vec3 arrays representing the triangle in screen space and world space
+	Pass in Vec2 scale and shift vectors to map from world space to screen space and set the triangle vertices
+*/
 void getTriangleScreen(array<Vec2, 3>& triScreen, array<Vec3, 3>& triWorld, Vec2 scale, Vec2 shift)
 {
 	for (int i = 0; i < 3; i++)
@@ -135,9 +144,12 @@ void getTriangleScreen(array<Vec2, 3>& triScreen, array<Vec3, 3>& triWorld, Vec2
 	}
 }
 
+/*
+	Helper function to calculate the area of a triangle using the cross product of 2D vectors
+	Pass in two Vec2 vectors representing the sides of the triangle, starting from the same vertex
+*/
 float triangleArea(Vec2 a, Vec2 b)
 {
-	// Compute the area of the triangle using the cross product
 	return 0.5f * (a.x * b.y - b.x * a.y);
 }
 
