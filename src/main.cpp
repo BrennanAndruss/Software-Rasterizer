@@ -145,7 +145,8 @@ int main(int argc, char **argv)
 {
 	if(argc < 6) {
 		cerr << "Error: Not enough arguments provided" << endl;
-		cout << "Usage: ./raster [meshfile] [imagefile] [width] [height] [colormode]" << endl;
+		cout << "Usage: ./raster meshfile imagefile width height colormode [r] [g] [b]" << endl;
+		cout << "		[optional] r g b: base color for the object" << endl;
 		return 0;
 	}
 
@@ -158,8 +159,20 @@ int main(int argc, char **argv)
 
 	int colorMode = atoi(argv[5]);
 
-	// create an image
+	// Process optional command line arguments
+	Vec3 baseColor(255.0f, 0.0f, 0.0f); // default to red
+	if (argc == 9)
+	{
+		baseColor.x = atof(argv[6]);
+		baseColor.y = atof(argv[7]);
+		baseColor.z = atof(argv[8]);
+	}
+
+	// Create an image
 	auto image = make_shared<Image>(g_width, g_height);
+
+	// Create a z-buffer
+	vector<float> zBuffer(g_width * g_height, -INFINITY);
 
 	// Define vertex and index buffers
 	vector<float> vertBuf;
@@ -217,29 +230,30 @@ int main(int argc, char **argv)
 	float shiftY = -scaleY * bottom;
 	Vec2 shift(shiftX, shiftY);
 
+	// Define small epsilon value for floating point comparisons
 	float epsilon = 0.001f;
 
 	// Loop through and rasterize all the triangles
 	for (int n = 0; n < indBuf.size() / 3; n++)
 	{
 		// Get data from buffers to assemble triangles
-		array<Vec3, 3> t_w;
-		getTriangleWorld(t_w, vertBuf, indBuf, size, offset, n);
+		array<Vec3, 3> triWorld;
+		getTriangleWorld(triWorld, vertBuf, indBuf, size, offset, n);
 
 		// Convert vertices from world space to screen space
-		array<Vec2, 3> t_s;
-		getTriangleScreen(t_s, t_w, scale, shift);
+		array<Vec2, 3> triScreen;
+		getTriangleScreen(triScreen, triWorld, scale, shift);
 
 		// Get the bounding box of the triangle with screen coordinates
 		BBox bbox;
-		bbox.xMin = min(t_s[0].x, min(t_s[1].x, t_s[2].x));
-		bbox.xMax = max(t_s[0].x, max(t_s[1].x, t_s[2].x));
-		bbox.yMin = min(t_s[0].y, min(t_s[1].y, t_s[2].y));
-		bbox.yMax = max(t_s[0].y, max(t_s[1].y, t_s[2].y));
+		bbox.xMin = min(triScreen[0].x, min(triScreen[1].x, triScreen[2].x));
+		bbox.xMax = max(triScreen[0].x, max(triScreen[1].x, triScreen[2].x));
+		bbox.yMin = min(triScreen[0].y, min(triScreen[1].y, triScreen[2].y));
+		bbox.yMax = max(triScreen[0].y, max(triScreen[1].y, triScreen[2].y));
 
 		// Compute the area of the overall triangle
-		Vec2 v01 = t_s[0] - t_s[1];
-		Vec2 v02 = t_s[0] - t_s[2];
+		Vec2 v01 = triScreen[0] - triScreen[1];
+		Vec2 v02 = triScreen[0] - triScreen[2];
 		float triArea = getTriangleArea(v01, v02);
 
 		// Loop through all pixels within the bounding box
@@ -249,9 +263,9 @@ int main(int argc, char **argv)
 			{
 				// Define the vectors for each subtriangle
 				Vec2 v(static_cast<float>(x), static_cast<float>(y));
-				Vec2 v0 = t_s[0] - v;
-				Vec2 v1 = t_s[1] - v;
-				Vec2 v2 = t_s[2] - v;
+				Vec2 v0 = triScreen[0] - v;
+				Vec2 v1 = triScreen[1] - v;
+				Vec2 v2 = triScreen[2] - v;
 
 				// Compute the barycentric coordinates
 				float alpha = getTriangleArea(v1, v2) / triArea;
@@ -263,7 +277,18 @@ int main(int argc, char **argv)
 					-epsilon <= beta && beta <= 1 + epsilon &&
 					-epsilon <= gamma && gamma <= 1 + epsilon)
 				{
-					image->setPixel(x, y, 255, 0, 0);
+					// Check the depth of the point on the triangle against the depth buffer at the same pixel
+					float z = alpha * triWorld[0].z + beta * triWorld[1].z + gamma * triWorld[2].z;
+					if (z > zBuffer[y * g_width + x])
+					{
+						// Adjust the base color based on depth and color the pixel
+						Vec3 depthColor = baseColor * ((1.0f + z) / 2.0f);
+						Vec3 pixelColor = alpha * depthColor + beta * depthColor + gamma * depthColor;
+						image->setPixel(x, y, pixelColor.x, pixelColor.y, pixelColor.z);
+
+						// Update the depth buffer
+						zBuffer[y * g_width + x] = z;
+					}
 				}
 			}
 		}
